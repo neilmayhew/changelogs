@@ -28,6 +28,7 @@ executable changelogs
     , base
     , cmark
     , filepath
+    , mtl
     , optparse-applicative
     , pretty-simple
     , terminal-size

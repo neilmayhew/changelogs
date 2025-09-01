@@ -3,7 +3,6 @@
 
 import Changelog
 
-import Control.Exception (SomeException, catch)
 import Data.Foldable (for_)
 import Options.Applicative
 import System.FilePath ((</>))
@@ -44,10 +43,10 @@ main = do
       )
 
   for_ optChangelogs $ \fp -> do
-    let fp' = maybe fp (</> fp) optDirectory
-    (pPrint =<< parseChangelogFile fp')
-      `catch`
-        (\e -> hPutStrLn stderr $ fp <> ": " <> show (e :: SomeException))
+    let
+      pError e = hPutStrLn stderr $ fp <> ": " <> e
+      fp' = maybe fp (</> fp) optDirectory
+    either pError pPrint =<< parseChangelogFile fp'
 
-parseChangelogFile :: FilePath -> IO Changelog
+parseChangelogFile :: FilePath -> IO (Either String Changelog)
 parseChangelogFile f = parseChangelog <$> T.readFile f

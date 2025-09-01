@@ -1,5 +1,5 @@
-{ mkDerivation, base, cmark, filepath, lib, optparse-applicative
-, pretty-simple, terminal-size, text
+{ mkDerivation, base, cmark, filepath, lib, mtl
+, optparse-applicative, pretty-simple, terminal-size, text
 }:
 mkDerivation {
   pname = "changelogs";
@@ -8,7 +8,7 @@ mkDerivation {
   isLibrary = false;
   isExecutable = true;
   executableHaskellDepends = [
-    base cmark filepath optparse-applicative pretty-simple
+    base cmark filepath mtl optparse-applicative pretty-simple
     terminal-size text
   ];
   description = "Utilities for processing cardano-ledger changelogs";
