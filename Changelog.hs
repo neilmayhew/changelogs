@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Changelog where
@@ -7,7 +8,7 @@ import CMark
 import Control.Monad ((<=<))
 import Control.Monad.Except (Except, runExcept, throwError)
 import Data.List (sortOn)
-import Data.Text (Text, pack, unpack)
+import Data.Text (Text, pack, unpack, pattern (:<))
 import Data.Version (Version, parseVersion, showVersion)
 import Text.ParserCombinators.ReadP (readP_to_S)
 
@@ -122,16 +123,8 @@ makeEntries [Node _ (LIST _) entries]
 makeEntries [] = pure []
 makeEntries unexpected = throwError $ "Unexpected Entries input: " <> show unexpected
 
-renderChangelog :: Changelog -> Text
-renderChangelog = fixStyle . nodeToCommonmark [] Nothing . unbuildSections . unmakeChangelog
- where
-  fixStyle = T.unlines . map fixLine . T.lines
-  fixLine = changeBullet . reindent
-  reindent l = let (spaces, rest) = T.span (== ' ') l in
-    T.replicate (T.length spaces `div` 4) "  " <> {-changeBullet-} rest
-  changeBullet l = case T.uncons l of
-    Just ('-', rest) -> T.cons '*' rest
-    _ -> l
+renderChangelog :: Text -> Changelog -> Text
+renderChangelog bullets = fixMarkdownStyle bullets . nodeToCommonmark [] Nothing . unbuildSections . unmakeChangelog
 
 unmakeChangelog :: Changelog -> (Markdown, [Section])
 unmakeChangelog Changelog {..} = ([], [Section 1 changelogTitle mempty $ map unmakeRelease changelogVersions])
@@ -154,3 +147,18 @@ unmakeEntries = (:[]) . Node Nothing (LIST listAttrs) . map (Node Nothing ITEM .
 
 unmakeSublib :: Sublib -> Section
 unmakeSublib Sublib {..} = Section 3 slName (unmakeEntries slEntries) []
+
+fixMarkdownStyle :: Text -> Text -> Text
+fixMarkdownStyle bullets = T.unlines . map (fixEmptyBullets . fixEscapes . fixLine) . T.lines
+ where
+  fixLine l =
+    let
+      (spaces, rest) = T.span (== ' ') l
+      level = T.length spaces `div` 4
+      bullet = T.index bullets (level `mod` T.length bullets)
+     in
+      T.replicate level "  " <> case rest of
+        '-' :< rest' -> bullet :< rest'
+        _ -> rest
+  fixEscapes = T.replace "\\#" "#" . T.replace "\\>" ">"
+  fixEmptyBullets l = if  "* " == l then "*\n" else l

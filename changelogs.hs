@@ -1,9 +1,11 @@
 {-# LANGUAGE ApplicativeDo #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 import Changelog
 
 import Data.Foldable (for_)
+import Data.Text (Text, unpack)
 import Options.Applicative
 import System.FilePath ((</>))
 import System.IO (hPutStrLn, stderr)
@@ -15,6 +17,7 @@ data Options = Options
   { optChangelogs :: [String]
   , optDirectory :: Maybe FilePath
   , optOutput :: Maybe FilePath
+  , optBulletHierarchy :: Text
   }
   deriving (Show)
 
@@ -39,6 +42,14 @@ main = do
                     <> short 'o'
                     <> long "output"
                     <> metavar "FILE"
+              optBulletHierarchy <-
+                strOption $
+                  help "Use CHARS for the levels of bullets"
+                    <> short 'b'
+                    <> long "bullets"
+                    <> metavar "CHARS"
+                    <> value "*-+"
+                    <> showDefaultWith unpack
               optChangelogs <-
                 some . strArgument $
                   help "Changelog files to process"
@@ -51,7 +62,7 @@ main = do
   for_ optChangelogs $ \fp -> do
     let
       pError e = hPutStrLn stderr $ fp <> ": " <> e
-      pPrint = maybe T.putStr T.writeFile optOutput . renderChangelog
+      pPrint = maybe T.putStr T.writeFile optOutput . renderChangelog optBulletHierarchy
       fp' = maybe fp (</> fp) optDirectory
     either pError pPrint =<< parseChangelogFile fp'
 
