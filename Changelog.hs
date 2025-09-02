@@ -75,15 +75,15 @@ data Changelog = Changelog
   deriving (Eq, Ord, Show)
 
 data Release = Release
-  { cvNumber :: Version
-  , cvEntries :: [Entry]
-  , cvSublibs :: [Sublib]
+  { releaseNumber :: Version
+  , releaseEntries :: [Entry]
+  , releaseSublibs :: [Sublib]
   }
   deriving (Eq, Ord, Show)
 
 data Sublib = Sublib
-  { slName :: Markdown
-  , slEntries :: [Entry]
+  { sublibName :: Markdown
+  , sublibEntries :: [Entry]
   }
   deriving (Eq, Ord, Show)
 
@@ -130,7 +130,7 @@ unmakeChangelog Changelog {..} = ([], [Section 1 changelogTitle mempty $ map unm
 
 unmakeRelease :: Release -> Section
 unmakeRelease Release {..} =
-  Section 2 (textNode . pack $ showVersion cvNumber) (unmakeEntries cvEntries) (map unmakeSublib cvSublibs)
+  Section 2 (textNode . pack $ showVersion releaseNumber) (unmakeEntries releaseEntries) (map unmakeSublib releaseSublibs)
  where
   textNode t = [Node Nothing (TEXT t) []]
 
@@ -145,7 +145,7 @@ unmakeEntries = (:[]) . Node Nothing (LIST listAttrs) . map (Node Nothing ITEM .
     }
 
 unmakeSublib :: Sublib -> Section
-unmakeSublib Sublib {..} = Section 3 slName (unmakeEntries slEntries) []
+unmakeSublib Sublib {..} = Section 3 sublibName (unmakeEntries sublibEntries) []
 
 fixMarkdownStyle :: Text -> Text -> Text
 fixMarkdownStyle bullets = T.unlines . map (fixEmptyBullets . fixEscapes . fixLine) . T.lines
