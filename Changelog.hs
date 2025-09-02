@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Changelog where
@@ -8,7 +7,7 @@ import CMark
 import Control.Monad ((<=<))
 import Control.Monad.Except (Except, runExcept, throwError)
 import Data.List (sortOn)
-import Data.Text (Text, pack, unpack, pattern (:<))
+import Data.Text (Text, pack, unpack)
 import Data.Version (Version, parseVersion, showVersion)
 import Text.ParserCombinators.ReadP (readP_to_S)
 
@@ -157,8 +156,8 @@ fixMarkdownStyle bullets = T.unlines . map (fixEmptyBullets . fixEscapes . fixLi
       level = T.length spaces `div` 4
       bullet = T.index bullets (level `mod` T.length bullets)
      in
-      T.replicate level "  " <> case rest of
-        '-' :< rest' -> bullet :< rest'
+      T.replicate level "  " <> case T.uncons rest of
+        Just ('-', rest') -> T.cons bullet rest'
         _ -> rest
   fixEscapes = T.replace "\\#" "#" . T.replace "\\>" ">"
   fixEmptyBullets l = if  "* " == l then "*\n" else l
