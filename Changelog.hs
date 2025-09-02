@@ -95,14 +95,26 @@ newtype Entry = Entry
 parseChangelog :: Text -> Either String Changelog
 parseChangelog = runExcept . (makeChangeLog <=< buildSections . commonmarkToNode [])
 
+renderChangelog :: Text -> Changelog -> Text
+renderChangelog bullets = fixMarkdownStyle bullets . nodeToCommonmark [] Nothing . unbuildSections . unmakeChangelog
+
 makeChangeLog :: (Markdown, [Section]) -> Except String Changelog
 makeChangeLog ([], [Section 1 title [] sections]) = Changelog title <$> traverse makeRelease sections
 makeChangeLog unexpected = throwError $ "Unexpected Changelog input: " <> show unexpected
+
+unmakeChangelog :: Changelog -> (Markdown, [Section])
+unmakeChangelog Changelog {..} = ([], [Section 1 changelogTitle mempty $ map unmakeRelease changelogVersions])
 
 makeRelease :: Section -> Except String Release
 makeRelease (Section 2 title markdown subsections) =
   Release <$> makeVersion title <*> makeEntries markdown <*> traverse makeSublib subsections
 makeRelease unexpected = throwError $ "Unexpected Release parse result: " <> show unexpected
+
+unmakeRelease :: Release -> Section
+unmakeRelease Release {..} =
+  Section 2 (textNode . pack $ showVersion releaseNumber) (unmakeEntries releaseEntries) (map unmakeSublib releaseSublibs)
+ where
+  textNode t = [Node Nothing (TEXT t) []]
 
 makeVersion :: Markdown -> Except String Version
 makeVersion = parseVersion' . mconcat . map nodeText
@@ -116,26 +128,18 @@ makeSublib :: Section -> Except String Sublib
 makeSublib (Section 3 title markdown []) = Sublib title <$> makeEntries markdown
 makeSublib unexpected = throwError $ "Unexpected Sublib input: " <> show unexpected
 
+unmakeSublib :: Sublib -> Section
+unmakeSublib Sublib {..} = Section 3 sublibName (unmakeEntries sublibEntries) []
+
 makeEntries :: Markdown -> Except String [Entry]
 makeEntries [Node _ (LIST _) entries]
   | all ((ITEM ==) . nodeType) entries = pure $ map (Entry . nodeChildren) entries
 makeEntries [] = pure []
 makeEntries unexpected = throwError $ "Unexpected Entries input: " <> show unexpected
 
-renderChangelog :: Text -> Changelog -> Text
-renderChangelog bullets = fixMarkdownStyle bullets . nodeToCommonmark [] Nothing . unbuildSections . unmakeChangelog
-
-unmakeChangelog :: Changelog -> (Markdown, [Section])
-unmakeChangelog Changelog {..} = ([], [Section 1 changelogTitle mempty $ map unmakeRelease changelogVersions])
-
-unmakeRelease :: Release -> Section
-unmakeRelease Release {..} =
-  Section 2 (textNode . pack $ showVersion releaseNumber) (unmakeEntries releaseEntries) (map unmakeSublib releaseSublibs)
- where
-  textNode t = [Node Nothing (TEXT t) []]
-
 unmakeEntries :: [Entry] -> Markdown
-unmakeEntries = (:[]) . Node Nothing (LIST listAttrs) . map (Node Nothing ITEM . unEntry)
+unmakeEntries [] = []
+unmakeEntries es = [Node Nothing (LIST listAttrs) $ map (Node Nothing ITEM . unEntry) es]
  where
   listAttrs = ListAttributes
     { listType = BULLET_LIST
@@ -143,9 +147,6 @@ unmakeEntries = (:[]) . Node Nothing (LIST listAttrs) . map (Node Nothing ITEM .
     , listStart = 0
     , listDelim = PERIOD_DELIM
     }
-
-unmakeSublib :: Sublib -> Section
-unmakeSublib Sublib {..} = Section 3 sublibName (unmakeEntries sublibEntries) []
 
 fixMarkdownStyle :: Text -> Text -> Text
 fixMarkdownStyle bullets = T.unlines . map (fixEmptyBullets . fixEscapes . fixLine) . T.lines
