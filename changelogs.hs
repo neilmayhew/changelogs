@@ -7,7 +7,6 @@ import Data.Foldable (for_)
 import Options.Applicative
 import System.FilePath ((</>))
 import System.IO (hPutStrLn, stderr)
-import Text.Pretty.Simple (pPrint)
 
 import qualified System.Console.Terminal.Size as TS
 import qualified Data.Text.IO as T
@@ -15,6 +14,7 @@ import qualified Data.Text.IO as T
 data Options = Options
   { optChangelogs :: [String]
   , optDirectory :: Maybe FilePath
+  , optOutput :: Maybe FilePath
   }
   deriving (Show)
 
@@ -33,6 +33,12 @@ main = do
                     <> short 'C'
                     <> long "directory"
                     <> metavar "DIR"
+              optOutput <-
+                optional . strOption $
+                  help "Write output to FILE"
+                    <> short 'o'
+                    <> long "output"
+                    <> metavar "FILE"
               optChangelogs <-
                 some . strArgument $
                   help "Changelog files to process"
@@ -45,6 +51,7 @@ main = do
   for_ optChangelogs $ \fp -> do
     let
       pError e = hPutStrLn stderr $ fp <> ": " <> e
+      pPrint = maybe T.putStr T.writeFile optOutput . renderChangelog
       fp' = maybe fp (</> fp) optDirectory
     either pError pPrint =<< parseChangelogFile fp'
 

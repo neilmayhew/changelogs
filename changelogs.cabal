@@ -30,6 +30,5 @@ executable changelogs
     , filepath
     , mtl
     , optparse-applicative
-    , pretty-simple
     , terminal-size
     , text

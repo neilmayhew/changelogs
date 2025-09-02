@@ -1,12 +1,17 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+
 module Changelog where
 
 import CMark
 import Control.Monad ((<=<))
 import Control.Monad.Except (Except, runExcept, throwError)
 import Data.List (sortOn)
-import Data.Text (Text, unpack)
-import Data.Version (Version, parseVersion)
+import Data.Text (Text, pack, unpack)
+import Data.Version (Version, parseVersion, showVersion)
 import Text.ParserCombinators.ReadP (readP_to_S)
+
+import qualified Data.Text as T
 
 -- CMark helper functions
 
@@ -52,6 +57,15 @@ buildSections (Node _ DOCUMENT docNodes) = pure $ foldr go mempty docNodes
     (n : ns, ss)
 buildSections (Node mPos typ _) = throwError $ "Unexpected top-level node type (" <> show typ <> ") at " <> show mPos
 
+unbuildSections :: (Markdown, [Section]) -> Node
+unbuildSections (md, ss) =
+  Node Nothing DOCUMENT $ md <> concatMap go ss
+ where
+  go :: Section -> Markdown
+  go Section {..} =
+    Node Nothing (HEADING sectionLevel) sectionTitle :
+      sectionPreamble <> concatMap go sectionContent
+
 -- Changelogs
 
 data Changelog = Changelog
@@ -73,7 +87,9 @@ data Sublib = Sublib
   }
   deriving (Eq, Ord, Show)
 
-newtype Entry = Entry Markdown
+newtype Entry = Entry
+  { unEntry :: Markdown
+  }
   deriving (Eq, Ord, Show)
 
 parseChangelog :: Text -> Either String Changelog
@@ -105,3 +121,36 @@ makeEntries [Node _ (LIST _) entries]
   | all ((ITEM ==) . nodeType) entries = pure $ map (Entry . nodeChildren) entries
 makeEntries [] = pure []
 makeEntries unexpected = throwError $ "Unexpected Entries input: " <> show unexpected
+
+renderChangelog :: Changelog -> Text
+renderChangelog = fixStyle . nodeToCommonmark [] Nothing . unbuildSections . unmakeChangelog
+ where
+  fixStyle = T.unlines . map fixLine . T.lines
+  fixLine = changeBullet . reindent
+  reindent l = let (spaces, rest) = T.span (== ' ') l in
+    T.replicate (T.length spaces `div` 4) "  " <> {-changeBullet-} rest
+  changeBullet l = case T.uncons l of
+    Just ('-', rest) -> T.cons '*' rest
+    _ -> l
+
+unmakeChangelog :: Changelog -> (Markdown, [Section])
+unmakeChangelog Changelog {..} = ([], [Section 1 changelogTitle mempty $ map unmakeRelease changelogVersions])
+
+unmakeRelease :: Release -> Section
+unmakeRelease Release {..} =
+  Section 2 (textNode . pack $ showVersion cvNumber) (unmakeEntries cvEntries) (map unmakeSublib cvSublibs)
+ where
+  textNode t = [Node Nothing (TEXT t) []]
+
+unmakeEntries :: [Entry] -> Markdown
+unmakeEntries = (:[]) . Node Nothing (LIST listAttrs) . map (Node Nothing ITEM . unEntry)
+ where
+  listAttrs = ListAttributes
+    { listType = BULLET_LIST
+    , listTight = True
+    , listStart = 0
+    , listDelim = PERIOD_DELIM
+    }
+
+unmakeSublib :: Sublib -> Section
+unmakeSublib Sublib {..} = Section 3 slName (unmakeEntries slEntries) []
