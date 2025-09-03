@@ -115,11 +115,9 @@ unmakeRelease :: Release -> Section
 unmakeRelease Release {..} =
   Section
     2
-    (textNode . pack $ showVersion releaseNumber)
+    (unmakeVersion releaseNumber)
     (unmakeEntries releaseEntries)
     (map unmakeSublib releaseSublibs)
- where
-  textNode t = [Node Nothing (TEXT t) []]
 
 makeVersion :: Markdown -> Except String Version
 makeVersion = parseVersion' . mconcat . map nodeText
@@ -128,6 +126,9 @@ makeVersion = parseVersion' . mconcat . map nodeText
   parseVersion' t = case sortOn (length . snd) . readP_to_S parseVersion . unpack $ t of
     (v, _) : _ -> pure v
     unexpected -> throwError $ "Unexpected Version parse result: " <> show unexpected
+
+unmakeVersion :: Version -> Markdown
+unmakeVersion v = [Node Nothing (TEXT $ pack . showVersion $ v) []]
 
 makeSublib :: Section -> Except String Sublib
 makeSublib (Section 3 title markdown []) = Sublib title <$> makeEntries markdown
