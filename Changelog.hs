@@ -148,17 +148,26 @@ unmakeEntries es = [Node Nothing (LIST listAttrs) $ map (Node Nothing ITEM . unE
     , listDelim = PERIOD_DELIM
     }
 
+-- Modify CMark output to match our preferred style (and fix some bugs in it)
+
 fixMarkdownStyle :: Text -> Text -> Text
-fixMarkdownStyle bullets = T.unlines . map (fixEmptyBullets . fixEscapes . fixLine) . T.lines
+fixMarkdownStyle bullets = T.unlines . map fixAll . T.lines
  where
-  fixLine l =
+  fixAll = fixEmptyListItems . fixBullets . fixIndent . fixEscapes
+  fixEscapes = T.replace "\\#" "#" . T.replace "\\>" ">"
+  fixIndent l =
     let
       (spaces, rest) = T.span (== ' ') l
       level = T.length spaces `div` 4
+     in
+      T.replicate level "  " <> rest
+  fixBullets l =
+    let
+      (spaces, rest) = T.span (== ' ') l
+      level = T.length spaces `div` 2
       bullet = T.index bullets (level `mod` T.length bullets)
      in
-      T.replicate level "  " <> case T.uncons rest of
+      spaces <> case T.uncons rest of
         Just ('-', rest') -> T.cons bullet rest'
         _ -> rest
-  fixEscapes = T.replace "\\#" "#" . T.replace "\\>" ">"
-  fixEmptyBullets l = if  "* " == l then "*\n" else l
+  fixEmptyListItems l = if  "* " == l then "*\n" else l
