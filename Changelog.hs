@@ -4,7 +4,7 @@
 module Changelog where
 
 import CMark
-import Control.Monad ((<=<))
+import Control.Monad ((<=<), (>=>))
 import Control.Monad.Except (Except, runExcept, throwError)
 import Data.Char (isDigit)
 import Data.List (sortOn)
@@ -158,16 +158,25 @@ unmakeEntries es = [Node Nothing (LIST listAttrs) $ map (Node Nothing ITEM . unE
 -- Modify CMark output to match our preferred style (and fix some bugs in it)
 
 fixMarkdownStyle :: Text -> Text -> Text
-fixMarkdownStyle bullets = T.unlines . map fixAll . T.lines
+fixMarkdownStyle bullets = T.unlines . fixup . T.lines
  where
-  fixAll = fixEmptyListItems . fixNumbered . fixBullets . fixIndent . fixEscapes
-  fixEscapes = T.replace "\\#" "#" . T.replace "\\>" ">"
+  fixup =
+    concatMap . foldr (>=>) pure $
+      [ fixIndent
+      , fixBullets
+      , fixNumbered
+      , fixEscapes
+      , fixEmptyListItems
+      , fixHtmlComments
+      ]
+  -- We prefer flush-left top-level lists and two-space indentation
   fixIndent l =
     let
       (spaces, rest) = T.span (== ' ') l
       level = T.length spaces `div` 4
      in
-      T.replicate level "  " <> rest
+      pure $ T.replicate level "  " <> rest
+  -- We want different bullet characters on different list levels
   fixBullets l =
     let
       (spaces, rest) = T.span (== ' ') l
@@ -176,7 +185,8 @@ fixMarkdownStyle bullets = T.unlines . map fixAll . T.lines
       (lead, trail) = T.splitAt 2 rest
       lead' = if lead == "- " then T.cons bullet " " else lead
      in
-      spaces <> lead' <> trail
+      pure $ spaces <> lead' <> trail
+  -- We want a single space after the number in numbered list items
   fixNumbered l =
     let
       (spaces, rest) = T.span (== ' ') l
@@ -186,5 +196,10 @@ fixMarkdownStyle bullets = T.unlines . map fixAll . T.lines
         _ -> False
       trail' = if isNumbered then " " <> T.stripStart trail else trail
      in
-      spaces <> lead <> trail'
-  fixEmptyListItems l = if "* " == l then "*\n" else l
+      pure $ spaces <> lead <> trail'
+  -- See https://github.com/commonmark/cmark/issues/131
+  fixEscapes = pure . T.replace "\\#" "#" . T.replace "\\>" ">"
+  -- See https://github.com/commonmark/cmark/issues/583
+  fixEmptyListItems l = if l == "* " then ["*", ""] else [l]
+  -- See https://github.com/commonmark/cmark/pull/372
+  fixHtmlComments l = [l | T.strip l /= "<!-- end list -->"]
