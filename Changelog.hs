@@ -6,6 +6,7 @@ module Changelog where
 import CMark
 import Control.Monad ((<=<))
 import Control.Monad.Except (Except, runExcept, throwError)
+import Data.Char (isDigit)
 import Data.List (sortOn)
 import Data.Text (Text, pack, unpack)
 import Data.Version (Version, parseVersion, showVersion)
@@ -158,7 +159,7 @@ unmakeEntries es = [Node Nothing (LIST listAttrs) $ map (Node Nothing ITEM . unE
 fixMarkdownStyle :: Text -> Text -> Text
 fixMarkdownStyle bullets = T.unlines . map fixAll . T.lines
  where
-  fixAll = fixEmptyListItems . fixBullets . fixIndent . fixEscapes
+  fixAll = fixEmptyListItems . fixNumbered . fixBullets . fixIndent . fixEscapes
   fixEscapes = T.replace "\\#" "#" . T.replace "\\>" ">"
   fixIndent l =
     let
@@ -171,8 +172,18 @@ fixMarkdownStyle bullets = T.unlines . map fixAll . T.lines
       (spaces, rest) = T.span (== ' ') l
       level = T.length spaces `div` 2
       bullet = T.index bullets (level `mod` T.length bullets)
+      (lead, trail) = T.splitAt 2 rest
+      lead' = if lead == "- " then T.cons bullet " " else lead
      in
-      spaces <> case T.uncons rest of
-        Just ('-', rest') -> T.cons bullet rest'
-        _ -> rest
+      spaces <> lead' <> trail
+  fixNumbered l =
+    let
+      (spaces, rest) = T.span (== ' ') l
+      (lead, trail) = T.break (== ' ') rest
+      isNumbered = case T.unsnoc lead of
+        Just (pfx, '.') -> T.all isDigit pfx
+        _ -> False
+      trail' = if isNumbered then " " <> T.stripStart trail else trail
+     in
+      spaces <> lead <> trail'
   fixEmptyListItems l = if "* " == l then "*\n" else l
