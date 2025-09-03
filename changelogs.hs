@@ -10,8 +10,8 @@ import Options.Applicative
 import System.FilePath ((</>))
 import System.IO (hPutStrLn, stderr)
 
-import qualified System.Console.Terminal.Size as TS
 import qualified Data.Text.IO as T
+import qualified System.Console.Terminal.Size as TS
 
 data Options = Options
   { optChangelogs :: [String]

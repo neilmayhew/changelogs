@@ -63,8 +63,8 @@ unbuildSections (md, ss) =
  where
   go :: Section -> Markdown
   go Section {..} =
-    Node Nothing (HEADING sectionLevel) sectionTitle :
-      sectionPreamble <> concatMap go sectionContent
+    Node Nothing (HEADING sectionLevel) sectionTitle
+      : sectionPreamble <> concatMap go sectionContent
 
 -- Changelogs
 
@@ -112,7 +112,11 @@ makeRelease unexpected = throwError $ "Unexpected Release parse result: " <> sho
 
 unmakeRelease :: Release -> Section
 unmakeRelease Release {..} =
-  Section 2 (textNode . pack $ showVersion releaseNumber) (unmakeEntries releaseEntries) (map unmakeSublib releaseSublibs)
+  Section
+    2
+    (textNode . pack $ showVersion releaseNumber)
+    (unmakeEntries releaseEntries)
+    (map unmakeSublib releaseSublibs)
  where
   textNode t = [Node Nothing (TEXT t) []]
 
@@ -141,12 +145,13 @@ unmakeEntries :: [Entry] -> Markdown
 unmakeEntries [] = []
 unmakeEntries es = [Node Nothing (LIST listAttrs) $ map (Node Nothing ITEM . unEntry) es]
  where
-  listAttrs = ListAttributes
-    { listType = BULLET_LIST
-    , listTight = True
-    , listStart = 0
-    , listDelim = PERIOD_DELIM
-    }
+  listAttrs =
+    ListAttributes
+      { listType = BULLET_LIST
+      , listTight = True
+      , listStart = 0
+      , listDelim = PERIOD_DELIM
+      }
 
 -- Modify CMark output to match our preferred style (and fix some bugs in it)
 
@@ -170,4 +175,4 @@ fixMarkdownStyle bullets = T.unlines . map fixAll . T.lines
       spaces <> case T.uncons rest of
         Just ('-', rest') -> T.cons bullet rest'
         _ -> rest
-  fixEmptyListItems l = if  "* " == l then "*\n" else l
+  fixEmptyListItems l = if "* " == l then "*\n" else l
