@@ -27,7 +27,6 @@ executable changelogs
   build-depends:
     , base
     , cmark
-    , filepath
     , mtl
     , optparse-applicative
     , terminal-size

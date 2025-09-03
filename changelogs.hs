@@ -8,7 +8,6 @@ import Control.Monad (guard)
 import Data.Foldable (for_)
 import Data.Text (Text, unpack)
 import Options.Applicative
-import System.FilePath ((</>))
 import System.IO (hPutStrLn, stderr)
 
 import qualified Data.Text.IO as T
@@ -17,7 +16,6 @@ import qualified System.Console.Terminal.Size as TS
 data Options = Options
   { optChangelogs :: [String]
   , optInplace :: Bool
-  , optDirectory :: Maybe FilePath
   , optOutput :: Maybe FilePath
   , optBulletHierarchy :: Text
   }
@@ -37,12 +35,6 @@ main = do
                   help "Modify files in-place"
                     <> short 'i'
                     <> long "inplace"
-              optDirectory <-
-                optional . strOption $
-                  help "Filenames are relative to DIR"
-                    <> short 'C'
-                    <> long "directory"
-                    <> metavar "DIR"
               optOutput <-
                 optional . strOption $
                   help "Write output to FILE"
@@ -71,8 +63,7 @@ main = do
       pError e = hPutStrLn stderr $ fp <> ": " <> e
       pPrint = maybe T.putStr T.writeFile output . renderChangelog optBulletHierarchy
       output = optOutput <|> (guard optInplace >> pure fp)
-      fp' = maybe fp (</> fp) optDirectory
-    either pError pPrint =<< parseChangelogFile fp'
+    either pError pPrint =<< parseChangelogFile fp
 
 parseChangelogFile :: FilePath -> IO (Either String Changelog)
 parseChangelogFile f = parseChangelog <$> T.readFile f
