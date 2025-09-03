@@ -44,7 +44,7 @@ data Section = Section
   { sectionLevel :: Int
   , sectionTitle :: Markdown
   , sectionPreamble :: Markdown
-  , sectionContent :: [Section]
+  , sectionSubsections :: [Section]
   }
   deriving (Eq, Ord, Show)
 
@@ -65,13 +65,13 @@ unbuildSections (md, ss) =
   go :: Section -> Markdown
   go Section {..} =
     Node Nothing (HEADING sectionLevel) sectionTitle
-      : sectionPreamble <> concatMap go sectionContent
+      : sectionPreamble <> concatMap go sectionSubsections
 
 -- Changelogs
 
 data Changelog = Changelog
   { changelogTitle :: Markdown
-  , changelogVersions :: [Release]
+  , changelogReleases :: [Release]
   }
   deriving (Eq, Ord, Show)
 
@@ -104,7 +104,7 @@ makeChangeLog ([], [Section 1 title [] sections]) = Changelog title <$> traverse
 makeChangeLog unexpected = throwError $ "Unexpected Changelog input: " <> show unexpected
 
 unmakeChangelog :: Changelog -> (Markdown, [Section])
-unmakeChangelog Changelog {..} = ([], [Section 1 changelogTitle mempty $ map unmakeRelease changelogVersions])
+unmakeChangelog Changelog {..} = ([], [Section 1 changelogTitle mempty $ map unmakeRelease changelogReleases])
 
 makeRelease :: Section -> Except String Release
 makeRelease (Section 2 title markdown subsections) =
