@@ -71,12 +71,14 @@ unbuildSections (md, ss) =
 
 data Changelog = Changelog
   { changelogTitle :: Markdown
+  , changelogPreamble :: [Paragraph]
   , changelogReleases :: [Release]
   }
   deriving (Eq, Ord, Show)
 
 data Release = Release
   { releaseNumber :: Version
+  , releasePreamble :: [Paragraph]
   , releaseEntries :: [Entry]
   , releaseSublibs :: [Sublib]
   }
@@ -85,6 +87,11 @@ data Release = Release
 data Sublib = Sublib
   { sublibName :: Markdown
   , sublibEntries :: [Entry]
+  }
+  deriving (Eq, Ord, Show)
+
+newtype Paragraph = Paragraph
+  { unParagraph :: Markdown
   }
   deriving (Eq, Ord, Show)
 
@@ -100,15 +107,19 @@ renderChangelog :: Text -> Changelog -> Text
 renderChangelog bullets = fixMarkdownStyle bullets . nodeToCommonmark [] Nothing . unbuildSections . unmakeChangelog
 
 makeChangeLog :: (Markdown, [Section]) -> Except String Changelog
-makeChangeLog ([], [Section 1 title [] sections]) = Changelog title <$> traverse makeRelease sections
+makeChangeLog ([], [Section 1 title paragraphs sections]) =
+  Changelog title <$> makeParagraphs paragraphs <*> traverse makeRelease sections
 makeChangeLog unexpected = throwError $ "Unexpected Changelog input: " <> show unexpected
 
 unmakeChangelog :: Changelog -> (Markdown, [Section])
-unmakeChangelog Changelog {..} = ([], [Section 1 changelogTitle mempty $ map unmakeRelease changelogReleases])
+unmakeChangelog Changelog {..} =
+  ([], [Section 1 changelogTitle (unmakeParagraphs changelogPreamble) $ map unmakeRelease changelogReleases])
 
 makeRelease :: Section -> Except String Release
 makeRelease (Section 2 title markdown subsections) =
-  Release <$> makeVersion title <*> makeEntries markdown <*> traverse makeSublib subsections
+  Release <$> makeVersion title <*> makeParagraphs paragraphs <*> makeEntries entries <*> traverse makeSublib subsections
+ where
+  (paragraphs, entries) = span ((PARAGRAPH ==) . nodeType) markdown
 makeRelease unexpected = throwError $ "Unexpected Release parse result: " <> show unexpected
 
 unmakeRelease :: Release -> Section
@@ -116,7 +127,7 @@ unmakeRelease Release {..} =
   Section
     2
     (unmakeVersion releaseNumber)
-    (unmakeEntries releaseEntries)
+    (unmakeParagraphs releasePreamble <> unmakeEntries releaseEntries)
     (map unmakeSublib releaseSublibs)
 
 makeVersion :: Markdown -> Except String Version
@@ -136,6 +147,14 @@ makeSublib unexpected = throwError $ "Unexpected Sublib input: " <> show unexpec
 
 unmakeSublib :: Sublib -> Section
 unmakeSublib Sublib {..} = Section 3 sublibName (unmakeEntries sublibEntries) []
+
+makeParagraphs :: Markdown -> Except String [Paragraph]
+makeParagraphs markdown
+  | all ((PARAGRAPH ==) . nodeType) markdown = pure $ map (Paragraph . nodeChildren) markdown
+makeParagraphs unexpected = throwError $ "Unexpected Paragraphs input: " <> show unexpected
+
+unmakeParagraphs :: [Paragraph] -> Markdown
+unmakeParagraphs = map (Node Nothing PARAGRAPH . unParagraph)
 
 makeEntries :: Markdown -> Except String [Entry]
 makeEntries [Node _ (LIST _) entries]
