@@ -11,6 +11,7 @@ import Data.List (sortOn)
 import Data.Text.Lazy (Text, unpack)
 import Data.Version (Version, parseVersion, showVersion)
 import Text.ParserCombinators.ReadP (readP_to_S)
+import Text.Pretty.Simple (pShow)
 
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
@@ -49,7 +50,7 @@ data Section = Section
   }
   deriving (Eq, Ord, Show)
 
-buildSections :: Node -> Except String (Markdown, [Section])
+buildSections :: Node -> Except Text (Markdown, [Section])
 buildSections (Node _ DOCUMENT docNodes) = pure $ foldr go mempty docNodes
  where
   go (Node _ (HEADING level) titleNodes) (ns, ss) =
@@ -57,7 +58,7 @@ buildSections (Node _ DOCUMENT docNodes) = pure $ foldr go mempty docNodes
      in ([], Section level titleNodes ns children : others)
   go n (ns, ss) =
     (n : ns, ss)
-buildSections (Node mPos typ _) = throwError $ "Unexpected top-level node type (" <> show typ <> ") at " <> show mPos
+buildSections (Node mPos typ _) = throwError $ "Unexpected top-level node type (" <> pShow typ <> ") at " <> pShow mPos
 
 unbuildSections :: (Markdown, [Section]) -> Node
 unbuildSections (md, ss) =
@@ -101,27 +102,27 @@ newtype Entry = Entry
   }
   deriving (Eq, Ord, Show)
 
-parseChangelog :: Text -> Either String Changelog
+parseChangelog :: Text -> Either Text Changelog
 parseChangelog = runExcept . (makeChangeLog <=< buildSections . commonmarkToNode [] . TL.toStrict)
 
 renderChangelog :: Text -> Changelog -> Text
 renderChangelog bullets = fixMarkdownStyle bullets . TL.fromStrict . nodeToCommonmark [] Nothing . unbuildSections . unmakeChangelog
 
-makeChangeLog :: (Markdown, [Section]) -> Except String Changelog
+makeChangeLog :: (Markdown, [Section]) -> Except Text Changelog
 makeChangeLog ([], [Section 1 title paragraphs sections]) =
   Changelog title <$> makeParagraphs paragraphs <*> traverse makeRelease sections
-makeChangeLog unexpected = throwError $ "Unexpected Changelog input: " <> show unexpected
+makeChangeLog unexpected = throwError $ "Unexpected Changelog input: " <> pShow unexpected
 
 unmakeChangelog :: Changelog -> (Markdown, [Section])
 unmakeChangelog Changelog {..} =
   ([], [Section 1 changelogTitle (unmakeParagraphs changelogPreamble) $ map unmakeRelease changelogReleases])
 
-makeRelease :: Section -> Except String Release
+makeRelease :: Section -> Except Text Release
 makeRelease (Section 2 title markdown subsections) =
   Release <$> makeVersion title <*> makeParagraphs paragraphs <*> makeEntries entries <*> traverse makeSublib subsections
  where
   (paragraphs, entries) = span ((PARAGRAPH ==) . nodeType) markdown
-makeRelease unexpected = throwError $ "Unexpected Release parse result: " <> show unexpected
+makeRelease unexpected = throwError $ "Unexpected Release parse result: " <> pShow unexpected
 
 unmakeRelease :: Release -> Section
 unmakeRelease Release {..} =
@@ -131,37 +132,37 @@ unmakeRelease Release {..} =
     (unmakeParagraphs releasePreamble <> unmakeEntries releaseEntries)
     (map unmakeSublib releaseSublibs)
 
-makeVersion :: Markdown -> Except String Version
+makeVersion :: Markdown -> Except Text Version
 makeVersion = parseVersion' . mconcat . map nodeText
  where
-  parseVersion' :: Text -> Except String Version
+  parseVersion' :: Text -> Except Text Version
   parseVersion' t = case sortOn (length . snd) . readP_to_S parseVersion . unpack $ t of
     (v, _) : _ -> pure v
-    unexpected -> throwError $ "Unexpected Version parse result: " <> show unexpected
+    unexpected -> throwError $ "Unexpected Version parse result: " <> pShow unexpected
 
 unmakeVersion :: Version -> Markdown
 unmakeVersion v = [Node Nothing (TEXT $ T.pack . showVersion $ v) []]
 
-makeSublib :: Section -> Except String Sublib
+makeSublib :: Section -> Except Text Sublib
 makeSublib (Section 3 title markdown []) = Sublib title <$> makeEntries markdown
-makeSublib unexpected = throwError $ "Unexpected Sublib input: " <> show unexpected
+makeSublib unexpected = throwError $ "Unexpected Sublib input: " <> pShow unexpected
 
 unmakeSublib :: Sublib -> Section
 unmakeSublib Sublib {..} = Section 3 sublibName (unmakeEntries sublibEntries) []
 
-makeParagraphs :: Markdown -> Except String [Paragraph]
+makeParagraphs :: Markdown -> Except Text [Paragraph]
 makeParagraphs markdown
   | all ((PARAGRAPH ==) . nodeType) markdown = pure $ map (Paragraph . nodeChildren) markdown
-makeParagraphs unexpected = throwError $ "Unexpected Paragraphs input: " <> show unexpected
+makeParagraphs unexpected = throwError $ "Unexpected Paragraphs input: " <> pShow unexpected
 
 unmakeParagraphs :: [Paragraph] -> Markdown
 unmakeParagraphs = map (Node Nothing PARAGRAPH . unParagraph)
 
-makeEntries :: Markdown -> Except String [Entry]
+makeEntries :: Markdown -> Except Text [Entry]
 makeEntries [Node _ (LIST _) entries]
   | all ((ITEM ==) . nodeType) entries = pure $ map (Entry . nodeChildren) entries
 makeEntries [] = pure []
-makeEntries unexpected = throwError $ "Unexpected Entries input: " <> show unexpected
+makeEntries unexpected = throwError $ "Unexpected Entries input: " <> pShow unexpected
 
 unmakeEntries :: [Entry] -> Markdown
 unmakeEntries [] = []

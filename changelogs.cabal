@@ -29,5 +29,6 @@ executable changelogs
     , cmark
     , mtl
     , optparse-applicative
+    , pretty-simple
     , terminal-size
     , text

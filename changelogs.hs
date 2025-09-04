@@ -7,8 +7,9 @@ import Changelog
 import Data.Foldable (for_)
 import Data.Text.Lazy (Text, unpack)
 import Options.Applicative
-import System.IO (hPutStrLn, stderr)
+import System.IO (stderr)
 
+import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.IO as TL
 import qualified System.Console.Terminal.Size as TS
 
@@ -62,9 +63,9 @@ main = do
 
   for_ optChangelogs $ \fp -> do
     let
-      printError e = hPutStrLn stderr $ fp <> ": " <> e
+      printError e = TL.hPutStrLn stderr $ TL.pack fp <> ": " <> e
       writeLog = optWriteFile fp . renderChangelog optBulletHierarchy
     either printError writeLog =<< parseChangelogFile fp
 
-parseChangelogFile :: FilePath -> IO (Either String Changelog)
+parseChangelogFile :: FilePath -> IO (Either Text Changelog)
 parseChangelogFile f = parseChangelog <$> TL.readFile f
