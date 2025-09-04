@@ -37,4 +37,13 @@
           self.packages.${system};
       }
     );
+
+  nixConfig = {
+    extra-substituters = [
+      "https://neil-mayhew.cachix.org"
+    ];
+    extra-trusted-public-keys = [
+      "neil-mayhew.cachix.org-1:mxrzBmebKDFyT7RzZom+8uhFochoTk6BL/1UTBU64eY="
+    ];
+  };
 }
