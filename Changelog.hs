@@ -8,11 +8,12 @@ import Control.Monad ((<=<), (>=>))
 import Control.Monad.Except (Except, runExcept, throwError)
 import Data.Char (isDigit)
 import Data.List (sortOn)
-import Data.Text (Text, pack, unpack)
+import Data.Text.Lazy (Text, unpack)
 import Data.Version (Version, parseVersion, showVersion)
 import Text.ParserCombinators.ReadP (readP_to_S)
 
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
 
 -- CMark helper functions
 
@@ -28,7 +29,7 @@ nodeChildren (Node _ _ ns) = ns
 nodeText :: Node -> Text
 nodeText (Node _ typ children) = mconcat $ implicitText : map nodeText children
  where
-  implicitText = case typ of
+  implicitText = TL.fromStrict $ case typ of
     CODE t -> t
     CODE_BLOCK _ t -> t
     HTML_BLOCK t -> t
@@ -101,10 +102,10 @@ newtype Entry = Entry
   deriving (Eq, Ord, Show)
 
 parseChangelog :: Text -> Either String Changelog
-parseChangelog = runExcept . (makeChangeLog <=< buildSections . commonmarkToNode [])
+parseChangelog = runExcept . (makeChangeLog <=< buildSections . commonmarkToNode [] . TL.toStrict)
 
 renderChangelog :: Text -> Changelog -> Text
-renderChangelog bullets = fixMarkdownStyle bullets . nodeToCommonmark [] Nothing . unbuildSections . unmakeChangelog
+renderChangelog bullets = fixMarkdownStyle bullets . TL.fromStrict . nodeToCommonmark [] Nothing . unbuildSections . unmakeChangelog
 
 makeChangeLog :: (Markdown, [Section]) -> Except String Changelog
 makeChangeLog ([], [Section 1 title paragraphs sections]) =
@@ -139,7 +140,7 @@ makeVersion = parseVersion' . mconcat . map nodeText
     unexpected -> throwError $ "Unexpected Version parse result: " <> show unexpected
 
 unmakeVersion :: Version -> Markdown
-unmakeVersion v = [Node Nothing (TEXT $ pack . showVersion $ v) []]
+unmakeVersion v = [Node Nothing (TEXT $ T.pack . showVersion $ v) []]
 
 makeSublib :: Section -> Except String Sublib
 makeSublib (Section 3 title markdown []) = Sublib title <$> makeEntries markdown
@@ -177,7 +178,7 @@ unmakeEntries es = [Node Nothing (LIST listAttrs) $ map (Node Nothing ITEM . unE
 -- Modify CMark output to match our preferred style (and fix some bugs in it)
 
 fixMarkdownStyle :: Text -> Text -> Text
-fixMarkdownStyle bullets = T.unlines . fixup . T.lines
+fixMarkdownStyle bullets = TL.unlines . fixup . TL.lines
  where
   fixup =
     concatMap . foldr (>=>) pure $
@@ -191,34 +192,34 @@ fixMarkdownStyle bullets = T.unlines . fixup . T.lines
   -- We prefer flush-left top-level lists and two-space indentation
   fixIndent l =
     let
-      (spaces, rest) = T.span (== ' ') l
-      level = T.length spaces `div` 4
+      (spaces, rest) = TL.span (== ' ') l
+      level = TL.length spaces `div` 4
      in
-      pure $ T.replicate level "  " <> rest
+      pure $ TL.replicate level "  " <> rest
   -- We want different bullet characters on different list levels
   fixBullets l =
     let
-      (spaces, rest) = T.span (== ' ') l
-      level = T.length spaces `div` 2
-      bullet = T.index bullets (level `mod` T.length bullets)
-      (lead, trail) = T.splitAt 2 rest
-      lead' = if lead == "- " then T.cons bullet " " else lead
+      (spaces, rest) = TL.span (== ' ') l
+      level = TL.length spaces `div` 2
+      bullet = TL.index bullets (level `mod` TL.length bullets)
+      (lead, trail) = TL.splitAt 2 rest
+      lead' = if lead == "- " then TL.cons bullet " " else lead
      in
       pure $ spaces <> lead' <> trail
   -- We want a single space after the number in numbered list items
   fixNumbered l =
     let
-      (spaces, rest) = T.span (== ' ') l
-      (lead, trail) = T.break (== ' ') rest
-      isNumbered = case T.unsnoc lead of
-        Just (pfx, '.') -> T.all isDigit pfx
+      (spaces, rest) = TL.span (== ' ') l
+      (lead, trail) = TL.break (== ' ') rest
+      isNumbered = case TL.unsnoc lead of
+        Just (pfx, '.') -> TL.all isDigit pfx
         _ -> False
-      trail' = if isNumbered then " " <> T.stripStart trail else trail
+      trail' = if isNumbered then " " <> TL.stripStart trail else trail
      in
       pure $ spaces <> lead <> trail'
   -- See https://github.com/commonmark/cmark/issues/131
-  fixEscapes = pure . T.replace "\\#" "#" . T.replace "\\>" ">"
+  fixEscapes = pure . TL.replace "\\#" "#" . TL.replace "\\>" ">"
   -- See https://github.com/commonmark/cmark/issues/583
   fixEmptyListItems l = if l == "* " then ["*", ""] else [l]
   -- See https://github.com/commonmark/cmark/pull/372
-  fixHtmlComments l = [l | T.strip l /= "<!-- end list -->"]
+  fixHtmlComments l = [l | TL.strip l /= "<!-- end list -->"]

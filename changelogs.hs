@@ -5,11 +5,11 @@
 import Changelog
 
 import Data.Foldable (for_)
-import Data.Text (Text, unpack)
+import Data.Text.Lazy (Text, unpack)
 import Options.Applicative
 import System.IO (hPutStrLn, stderr)
 
-import qualified Data.Text.IO as T
+import qualified Data.Text.Lazy.IO as TL
 import qualified System.Console.Terminal.Size as TS
 
 data Options = Options
@@ -29,19 +29,19 @@ main = do
           ( helper <*> do
               let
                 inplaceParser =
-                  flag' T.writeFile $
+                  flag' TL.writeFile $
                     help "Modify files in-place"
                       <> short 'i'
                       <> long "inplace"
                 fileParser =
-                  fmap (const . T.writeFile) . strOption $
+                  fmap (const . TL.writeFile) . strOption $
                     help "Write output to FILE"
                       <> short 'o'
                       <> long "output"
                       <> metavar "FILE"
                 stdoutParser =
                   -- Write output to stdout
-                  pure $ const T.putStrLn
+                  pure $ const TL.putStrLn
               optWriteFile <- inplaceParser <|> fileParser <|> stdoutParser
               optBulletHierarchy <-
                 strOption $
@@ -67,4 +67,4 @@ main = do
     either printError writeLog =<< parseChangelogFile fp
 
 parseChangelogFile :: FilePath -> IO (Either String Changelog)
-parseChangelogFile f = parseChangelog <$> T.readFile f
+parseChangelogFile f = parseChangelog <$> TL.readFile f
