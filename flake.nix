@@ -8,16 +8,33 @@
       with
         import nixpkgs { inherit system; };
       let
-        packages = lib.attrsets.mapAttrs (_: compiler: compiler.callPackage ./. { }) haskell.packages;
-        supported = { inherit (packages) ghc8107 ghc928 ghc948 ghc967 ghc984 ghc9102 ghc9122; };
-        default = packages.ghc967;
+        dynamic = pkgs;
+        static = pkgsStatic;
+        packages = {
+          dynamic = lib.attrsets.mapAttrs
+            (_: compiler:
+              dynamic.haskell.lib.justStaticExecutables
+                (compiler.callPackage ./. { }))
+            dynamic.haskell.packages;
+          static = lib.attrsets.mapAttrs
+            (_: compiler:
+              static.haskell.lib.justStaticExecutables
+                (compiler.callPackage ./. { }))
+            static.haskell.packages;
+        };
       in
       {
         packages = packages // {
-          inherit default;
-          ci = linkFarm "ci" supported;
+          default = packages.dynamic.ghc967;
+          supported = linkFarm "supported" {
+            inherit (packages.dynamic)
+              ghc8107 ghc928 ghc948 ghc967 ghc984 ghc9102 ghc9122;
+          };
         };
-        devShells = lib.attrsets.mapAttrs (_: p: p.env) self.packages.${system};
+        devShells = lib.attrsets.mapAttrsRecursiveCond
+          (as: !(as ? "type") || as.type != "derivation")
+          (_: p: if p ? "env" then p.env else p)
+          self.packages.${system};
       }
     );
 }
