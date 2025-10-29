@@ -19,10 +19,9 @@
       in
       {
         packages = packages // {
-          default = packages.dynamic.ghc967;
+          default = packages.dynamic.ghc98;
           supported = linkFarm "supported" {
-            inherit (packages.dynamic)
-              ghc8107 ghc928 ghc948 ghc967 ghc984 ghc9102 ghc9122;
+            inherit (packages.dynamic) ghc810 ghc92 ghc94 ghc96 ghc98 ghc910 ghc912;
           };
         };
         devShells = lib.attrsets.mapAttrsRecursiveCond
