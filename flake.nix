@@ -8,19 +8,13 @@
       with
         import nixpkgs { inherit system; };
       let
-        dynamic = pkgs;
-        static = pkgsStatic;
+        eachCompiler = pkgSet: f:
+          lib.attrsets.mapAttrs (_: f) pkgSet.haskell.packages;
+        this = compiler:
+          haskell.lib.justStaticExecutables (compiler.callPackage ./. { });
         packages = {
-          dynamic = lib.attrsets.mapAttrs
-            (_: compiler:
-              dynamic.haskell.lib.justStaticExecutables
-                (compiler.callPackage ./. { }))
-            dynamic.haskell.packages;
-          static = lib.attrsets.mapAttrs
-            (_: compiler:
-              static.haskell.lib.justStaticExecutables
-                (compiler.callPackage ./. { }))
-            static.haskell.packages;
+          dynamic = eachCompiler pkgs this;
+          static = eachCompiler pkgsStatic this;
         };
       in
       {
@@ -32,8 +26,8 @@
           };
         };
         devShells = lib.attrsets.mapAttrsRecursiveCond
-          (as: !(as ? "type") || as.type != "derivation")
-          (_: p: if p ? "env" then p.env else p)
+          (as: !(lib.isDerivation as))
+          (_: p: p.env or p)
           self.packages.${system};
       }
     );
